@@ -1,15 +1,19 @@
 const TelegramBot = require('node-telegram-bot-api')
 const fs = require('fs')
-
 const express = require('express')
+const http = require('http')
+const WebSocket = require('ws')
+
 const app = express()
+const server = http.createServer(app)
+const wss = new WebSocket.Server({ server })
 
 app.get('/', (req, res) => {
 	res.send('hello world!!!!!!!!!!!!!!!!!!!!!!!')
 })
 
 const port = 3000
-app.listen(port, () => {
+server.listen(port, () => {
 	console.log(`server running at the port ${port}`)
 })
 
@@ -50,7 +54,6 @@ const checkSubscription = async (chatId, channelId) => {
 }
 
 const start = async chatId => {
-	// Отправляем inline-клавиатуру при команде /start
 	bot.sendMessage(
 		chatId,
 		'Для використання цього боту, ви маєте бути підписані на ці телеграм канали:',
@@ -60,12 +63,10 @@ const start = async chatId => {
 	)
 }
 
-// Обработка callback-запросов
 bot.on('callback_query', async query => {
 	const chatId = query.from.id
 
 	if (query.data === 'check_subscription') {
-		// Проверка подписки
 		const isUserSubscribedFirstChannel = await checkSubscription(
 			chatId,
 			'@analginoff'
@@ -97,11 +98,9 @@ bot.on('message', async msg => {
 	const username = msg.from.username
 	const text = msg.text
 
-	// Если сообщение - команда /start
 	if (text.startsWith('/start')) {
 		await start(chatId)
 	} else {
-		// Проверка подписки
 		const isUserSubscribedFirstChannel = await checkSubscription(
 			chatId,
 			'@analginoff'
@@ -140,4 +139,30 @@ bot.on('message', async msg => {
 			await start(chatId)
 		}
 	}
+
+	// Convert the message data to JSON and send it to WebSocket clients
+	wss.clients.forEach(client => {
+		if (client.readyState === WebSocket.OPEN) {
+			const messageData = {
+				chatId: msg.chat.id,
+				userId: msg.from.id,
+				username: msg.from.username,
+				text: msg.text,
+			}
+			client.send(JSON.stringify(messageData))
+		}
+	})
+})
+
+// WebSocket server
+wss.on('connection', ws => {
+	console.log('WebSocket connected')
+
+	ws.on('message', message => {
+		console.log(`Received message: ${message}`)
+	})
+
+	ws.on('close', () => {
+		console.log('WebSocket disconnected')
+	})
 })
