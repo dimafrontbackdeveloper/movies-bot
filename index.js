@@ -1,51 +1,51 @@
-const TelegramBot = require('node-telegram-bot-api')
-const fs = require('fs')
+// const TelegramBot = require('node-telegram-bot-api')
+// const fs = require('fs')
 
-const bot = new TelegramBot('6882855075:AAHd-vNxndKxIPntyyIldcGDxkSefg32gSY', {
-	polling: true,
-})
+// const bot = new TelegramBot('6882855075:AAHd-vNxndKxIPntyyIldcGDxkSefg32gSY', {
+// 	polling: true,
+// })
 
-const subscribeToChannelsKeyboard = {
-	inline_keyboard: [
-		[
-			{ text: 'Канал 1', url: 'https://t.me/analginoff' },
-			{ text: 'Канал 2', url: 'https://t.me/analginoff2' },
-		],
-		[{ text: 'Перевірити підписку', callback_data: 'check_subscription' }],
-	],
-}
+// const subscribeToChannelsKeyboard = {
+// 	inline_keyboard: [
+// 		[
+// 			{ text: 'Канал 1', url: 'https://t.me/analginoff' },
+// 			{ text: 'Канал 2', url: 'https://t.me/analginoff2' },
+// 		],
+// 		[{ text: 'Перевірити підписку', callback_data: 'check_subscription' }],
+// 	],
+// }
 
-const checkSubscription = async (chatId, channelId) => {
-	try {
-		const chatMember = await bot.getChatMember(channelId, chatId)
+// const checkSubscription = async (chatId, channelId) => {
+// 	try {
+// 		const chatMember = await bot.getChatMember(channelId, chatId)
 
-		if (
-			chatMember.status === 'member' ||
-			chatMember.status === 'administrator' ||
-			chatMember.status === 'creator'
-		) {
-			return true
-		} else {
-			return false
-		}
-	} catch (error) {
-		console.error(error)
-		bot.sendMessage(
-			chatId,
-			'Произошла ошибка при проверке подписки. Перезапустите бота'
-		)
-	}
-}
+// 		if (
+// 			chatMember.status === 'member' ||
+// 			chatMember.status === 'administrator' ||
+// 			chatMember.status === 'creator'
+// 		) {
+// 			return true
+// 		} else {
+// 			return false
+// 		}
+// 	} catch (error) {
+// 		console.error(error)
+// 		bot.sendMessage(
+// 			chatId,
+// 			'Произошла ошибка при проверке подписки. Перезапустите бота'
+// 		)
+// 	}
+// }
 
-const start = async chatId => {
-	bot.sendMessage(
-		chatId,
-		'Для використання цього боту, ви маєте бути підписані на ці телеграм канали:',
-		{
-			reply_markup: subscribeToChannelsKeyboard,
-		}
-	)
-}
+// const start = async chatId => {
+// 	bot.sendMessage(
+// 		chatId,
+// 		'Для використання цього боту, ви маєте бути підписані на ці телеграм канали:',
+// 		{
+// 			reply_markup: subscribeToChannelsKeyboard,
+// 		}
+// 	)
+// }
 
 // bot.on('callback_query', async query => {
 // 	const chatId = query.from.id
@@ -125,12 +125,48 @@ const start = async chatId => {
 // 	}
 // })
 
-bot.on('message', async msg => {
-	console.log(msg)
-	const chatId = msg.chat.id
-	const userId = msg.from.id
-	const username = msg.from.username
-	const text = msg.text
-
-	bot.sendMessage(chatId, `${text}`)
+const telegramAuthToken = `6882855075:AAHd-vNxndKxIPntyyIldcGDxkSefg32gSY`
+const webhookEndpoint = '/endpoint'
+addEventListener('fetch', event => {
+	event.respondWith(handleIncomingRequest(event))
 })
+
+async function handleIncomingRequest(event) {
+	let url = new URL(event.request.url)
+	let path = url.pathname
+	let method = event.request.method
+	let workerUrl = `${url.protocol}//${url.host}`
+
+	if (method === 'POST' && path === webhookEndpoint) {
+		const update = await event.request.json()
+		event.waitUntil(processUpdate(update))
+		return new Response('Ok')
+	} else if (method === 'GET' && path === '/configure-webhook') {
+		const url = `https://api.telegram.org/bot${telegramAuthToken}/setWebhook?url=${workerUrl}${webhookEndpoint}`
+
+		const response = await fetch(url)
+
+		if (response.ok) {
+			return new Response('Webhook set successfully', { status: 200 })
+		} else {
+			return new Response('Failed to set webhook', { status: response.status })
+		}
+	} else {
+		return new Response('Not found', { status: 404 })
+	}
+}
+
+async function processUpdate(update) {
+	if ('message' in update) {
+		const chatId = update.message.chat.id
+		const userText = update.message.text
+
+		const responseText = `You said: ${userText}`
+
+		const url = `https://api.telegram.org/bot${telegramAuthToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(
+			responseText
+		)}`
+
+		await fetch(url)
+	}
+}
